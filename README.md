@@ -1,6 +1,6 @@
 # The RAG Playbook
 
-Distilled engineering notes from Jason Liu's RAG series (jxnl.co) — 14 articles covering retrieval-augmented generation from foundations to production to the contrarian case against RAG for code.
+Distilled engineering notes from Jason Liu's RAG series (jxnl.co) — 19 articles covering retrieval-augmented generation from foundations to production, context engineering for agents, and the contrarian case against RAG for code.
 
 Source: https://jxnl.co/writing/ (RAG Master Series + Context Engineering + Coding Agents)
 
@@ -24,11 +24,16 @@ This is a reference document, not a tutorial. Read the checklist at the bottom f
 10. [Future: reports over Q&A](#10-future-reports-over-qa)
 11. [Enterprise implementation](#11-enterprise-implementation)
 12. [Context engineering for agents](#12-context-engineering-for-agents)
-13. [Grep beats embeddings (for code)](#13-grep-beats-embeddings)
-14. [The anti-RAG case (Cline)](#14-the-anti-rag-case)
-15. [Numbers and benchmarks](#15-numbers-and-benchmarks)
-16. [Tools reference](#16-tools-reference)
-17. [Master checklist](#17-master-checklist)
+13. [Slash commands vs subagents](#13-slash-commands-vs-subagents)
+14. [Compaction as momentum](#14-compaction-as-momentum)
+15. [Grep beats embeddings (for code)](#15-grep-beats-embeddings)
+16. [The anti-RAG case (Cline)](#16-the-anti-rag-case)
+17. [Why multi-agent systems fail (Cognition)](#17-why-multi-agent-systems-fail)
+18. [Rethinking RAG architecture (Sourcegraph)](#18-rethinking-rag-architecture)
+19. [Model selection is not agnostic](#19-model-selection-is-not-agnostic)
+20. [Numbers and benchmarks](#20-numbers-and-benchmarks)
+21. [Tools reference](#21-tools-reference)
+22. [Master checklist](#22-master-checklist)
 
 ---
 
@@ -588,7 +593,83 @@ Agent sees file distribution counts → strategically calls `read_file()` on hig
 
 ---
 
-## 13. Grep beats embeddings
+## 13. Slash commands vs subagents
+
+Source: Jason Liu, Context Engineering series.
+
+### The problem: context pollution
+
+Bad context is cheap but toxic. Loading 100k lines of test logs costs nothing computationally but destroys valuable reasoning context. A well-crafted 3k-token feature spec gets wrecked when you dump Python output and error traces on top.
+
+### Slash command path (context pollution)
+
+When `/run-tests` dumps 150k tokens of test output into the main thread, the agent's context becomes 91% noise. The agent continues working but with degraded reasoning because most of its context is junk.
+
+Measured on a real coding task:
+- Main thread: 169,000 tokens consumed
+- Useful signal: 9% (16k tokens)
+- Noise: 91% (153k tokens)
+
+### Subagent path (context isolation)
+
+Same diagnostic capability, different economics:
+- Subagent burns tokens off-thread exploring test logs, git history, file contents
+- Returns distilled findings to main thread
+- Main thread: 21,000 tokens consumed
+- Useful signal: 76% (16k tokens)
+- Noise: 24% (5k tokens)
+
+**8x cleaner context.** Same result. Same cost ballpark.
+
+### The principle
+
+Burn tokens in specialized workers, preserve focus in the main thread.
+
+### When to use subagents
+
+- Running tests and diagnosing failures
+- Processing large data rooms (financial due diligence)
+- Research synthesis across multiple domains
+- Any operation that generates massive, noisy output
+
+### Caveat
+
+Subagents work best for read-only operations. Multi-agent systems become fragile when agents make conflicting decisions without full context. For research and data exploration, parallel subagents excel. For decision-making, keep it single-threaded.
+
+---
+
+## 14. Compaction as momentum
+
+Source: Jason Liu, Context Engineering series.
+
+### The insight
+
+If in-context learning is gradient descent (shown in research), then compaction (conversation summarization) is momentum — it preserves the learned optimization path.
+
+### Two experiments worth running
+
+**Experiment 1: Compaction timing affects task success**
+
+Run million-token agent trajectories on complex tasks. Test compaction at different completion points (50%, 75%, natural boundaries, agent-controlled). Key question: does timing affect how well agents maintain their learning trajectory?
+
+**Experiment 2: Compaction for observability**
+
+Use specialized compaction prompts to understand agent failure patterns:
+
+- Failure mode detection: compact focusing on loops, linter conflicts, deleted code recreation
+- Language switching: compact focusing on framework switches, polyglot patterns
+- User feedback clustering: compact focusing on corrections, preference statements
+
+### Practical implications
+
+- Simple summarization often beats complex context management (Cline's finding)
+- To-do lists help agents track progress across context resets
+- Compaction timing matters more than most teams realize
+- The "bitter lesson" applies: simpler compaction strategies win as models improve
+
+---
+
+## 15. Grep beats embeddings
 
 Source: Colin Flaherty, founding engineer at Augment (SWE-Bench Verified leaderboard-topping agent).
 
@@ -654,7 +735,7 @@ Agent persistence compensated for simple tools.
 
 ---
 
-## 14. The anti-RAG case
+## 16. The anti-RAG case (Cline)
 
 Source: Nik Pash, Head of AI at Cline.
 
@@ -714,7 +795,129 @@ Recommendation: single-threaded, one agent for coding tasks.
 
 ---
 
-## 15. Numbers and benchmarks
+## 17. Why multi-agent systems fail (Cognition)
+
+Source: Walden Yan, co-founder and CPO of Cognition (Devin).
+
+### Core problem: the telephone game
+
+Multi-agent systems break down because of context loss. Each agent only knows what the orchestrator told it. Critical details get lost in transmission.
+
+Example: one agent builds green pipes (Flappy Bird background), another builds a bird asset. Without shared context, they produce incompatible components. This compounds at scale.
+
+### Context passing helps but doesn't solve it
+
+Even with full context passing (entire agent traces), parallel sub-agents make implicit decisions that conflict:
+- Different coding styles
+- Different API choices
+- Duplicated code
+
+These conflicts create integration problems that the orchestrator can't resolve without full context of both agents' reasoning.
+
+### Linear systems hit context limits
+
+Sequential agents (agent 1 → agent 2 → agent 3) avoid conflicts but accumulate context until it exceeds the window. Cognition trained a specialized model to identify and preserve critical information across agent handoffs.
+
+### Real-world patterns that work
+
+**Read-only sub-agents** (Claude Code, OpenCode):
+- Sub-agents only read, never make decisions
+- List files, examine packages, look for imports
+- Report findings back to main agent
+- Main agent retains all decision authority
+
+**Edit-apply models** (Cursor, Windsurf):
+- Smart model generates human-readable edit instructions
+- Simpler model applies those changes
+- Fragility: if instructions are ambiguous, edits break
+
+### The user-facing rule
+
+Systems should feel like a single coherent agent to users. Even with complex internals, present one continuous decision-maker. True multi-agent collaboration requires modeling what others know — a skill current LLMs lack.
+
+---
+
+## 18. Rethinking RAG architecture (Sourcegraph)
+
+Source: Beyang Liu, CTO of Sourcegraph (Amp coding agent).
+
+### The paradigm inversion
+
+RAG chat era: monolithic context engine fetches snippets → sends to LLM → generates response.
+
+Agentic era: model decides which tools to invoke → fetches its own context → reasons about what to explore.
+
+This is not a minor change. It inverts who controls context fetching.
+
+### Chat era vs agentic era
+
+Chat era: humans deeply involved in inner loop. Check output after every LLM turn. Refine. Apply. Lots of ping-pong for one atomic change.
+
+Agentic era: articulate what you want upfront. Agent reads files, edits, searches, executes, checks output. Much less human babysitting.
+
+### What RAG looks like now
+
+Traditional RAG: monolithic engine with keyword indexes, embedding models, domain-specific chunkers, re-rankers.
+
+Modern agent: portfolio of simple Unix-like tools:
+- grep and glob for basic searches
+- Search sub-agent for multi-query exploration
+- Web documentation tools
+- Specialized services
+
+"RAG is not strictly about retrieval anymore. It's about molding the underlying model to be able to do what you need in a particular application setting."
+
+### Sub-agents as context extenders
+
+Amp uses three types:
+1. **Code search sub-agent** — explores and refines queries, consumes its own context window, returns only relevant snippets
+2. **Generic sub-agent** — invokes main agent in parallel for independent tasks
+3. **Oracle sub-agent** — uses a different model (Claude 3) better at nuanced thinking
+
+The search sub-agent is key: it burns context on exploration, then returns compact results. You throw away the exploration context.
+
+### Sourcegraph's controversial decisions
+
+- Minimal UI — focus on agent design, not context selection GUIs
+- Bias toward action — agent edits files without asking permission
+- No model selector — intentional coupling between models and tools
+- Unix philosophy — composable tools, not vertically integrated clients
+- Usage-based pricing — avoid perverse incentives to dumb down agent
+
+---
+
+## 19. Model selection is not agnostic
+
+Source: Beyang Liu (Sourcegraph), Nik Pash (Cline), Colin Flaherty (Augment).
+
+### The coupling problem
+
+Chat era: user message → retrieve context → LLM → response. Models loosely coupled with retrieval. Easy to swap.
+
+Agent era: agent LLM uses tools, tool descriptions become part of effective prompt, some tools are agents with their own models. Tight coupling.
+
+### Why model swapping breaks agents
+
+Tool descriptions are tuned for specific models. If you swap to a model that hasn't been tuned for your tool schemas, the agent misuses tools, hallucinates parameters, or ignores available tools entirely.
+
+"If we offer users a way to easily swap out any of these LLMs for another model that's not been tuned to those tool descriptions, it's a recipe for a bad user experience."
+
+### The emerging pattern
+
+Different models for different phases:
+- Planning: large context window, strong reasoning (Gemini Pro 2.5)
+- Execution: specialized coding model (Sonnet)
+- Oracle tasks: model with deep nuanced thinking (Claude 3)
+
+This is intentional coupling, not model agnosticism. The tool ecosystem is designed around specific model capabilities.
+
+### Implication for your RAG system
+
+Don't build model-agnostic if you're building agents. Design your tool descriptions and system prompts for the specific model you're using. Swapping models later requires re-tuning the entire tool interface, not just changing an API key.
+
+---
+
+## 20. Numbers and benchmarks
 
 | Metric | Value | Context |
 |---|---|---|
@@ -729,6 +932,7 @@ Recommendation: single-threaded, one agent for coding tasks.
 | Metadata tagging unnecessary | ~40% of clients | Indexes too small to benefit |
 | Animated progress indicators | +11% perceived performance | UX research |
 | Context engineering impact | 90% fewer clarifications, 75% fewer escalations, 95% fewer 504s, 4x faster resolution | Article 12 |
+| Subagent context cleanliness | 76% signal vs 9% signal (slash) | 8x improvement, article 13 |
 | Small app threshold for manual review | <500 daily events | Pipe to Slack, review all |
 | Time to stability after launch | ~4 months | Continuous data review loop |
 | Compliance queries in manager interactions | 40% | Discovered via Kura clustering |
@@ -736,7 +940,7 @@ Recommendation: single-threaded, one agent for coding tasks.
 
 ---
 
-## 16. Tools reference
+## 21. Tools reference
 
 | Tool | Purpose |
 |---|---|
@@ -760,7 +964,7 @@ Recommendation: single-threaded, one agent for coding tasks.
 
 ---
 
-## 17. Master checklist
+## 22. Master checklist
 
 ### Phase 1: Foundation (week 1-2)
 
@@ -807,6 +1011,11 @@ Recommendation: single-threaded, one agent for coding tasks.
 - [ ] Add `<system-instruction>` blocks teaching agents how to use results
 - [ ] Implement `load_pages()` for full-document loading
 - [ ] Add facets (aggregated counts by source, type, status) to search responses
+- [ ] Identify operations that generate massive noisy output → route to subagents
+- [ ] Measure signal/noise ratio in main thread vs subagent path
+- [ ] For long-running tasks: test simple summarization vs complex context management
+- [ ] If building multi-agent: restrict sub-agents to read-only operations
+- [ ] Design tool descriptions tuned for your specific model (not model-agnostic)
 
 ### Phase 6: Continuous improvement (ongoing)
 
@@ -825,7 +1034,10 @@ Recommendation: single-threaded, one agent for coding tasks.
 - [ ] For agents: give peripheral vision (facets), not perfect answers
 - [ ] Embrace the bitter lesson: remove application-layer complexity as models improve
 - [ ] Use large-context model for planning, specialized model for execution
+- [ ] For multi-agent: start with read-only sub-agents; avoid parallel decision-making agents
+- [ ] For long tasks: try simple summarization first before complex context management
+- [ ] Don't build model-agnostic if building agents — design tools for your specific model
 
 ---
 
-*Compiled from 14 articles at jxnl.co/writing/ (July 2026). All credit to Jason Liu and the cited experts (Skylar Payne, Colin Flaherty, Nik Pash).*
+*Compiled from 19 articles at jxnl.co/writing/ (July 2026). All credit to Jason Liu and the cited experts (Skylar Payne, Colin Flaherty, Nik Pash, Walden Yan, Beyang Liu, Ben from Raindrop, Sid from Oleve).*
