@@ -110,12 +110,16 @@ Cluster production queries into:
 1. **Topics** — what subjects users ask about
 2. **Capabilities** — what operations are needed (metadata lookup, summarization, timeline, compare-and-contrast)
 
-### Levels 6-9 (previewed)
+### Levels 6-9 (source only has bullet-point previews)
 
-- Level 6: Segment routing; processing tables and images
-- Level 7: Timeline queries; additional metadata
+Jason's article lists these as planned topics but never expanded them beyond one-liners:
+
+- Level 6: Finding segments and routing; processing tables; processing images
+- Level 7: Building timeline queries; adding additional metadata
 - Level 8: Summarization and summary indices
 - Level 9: Modeling business outcomes
+
+These are not missing from this distillation — they don't exist in the source material.
 
 ---
 
