@@ -749,7 +749,7 @@ Source: Nik Pash, Head of AI at Cline.
 
 "At Cline, I became the number one advocate against using RAG, even though RAG has been my bread and butter for so long."
 
-Corroboration: Boris from Cloud Code tried RAG, found it disappointing, abandoned it for agentic exploration.
+Corroboration: Boris Cherny (Claude Code) said on the Latent Space podcast that Anthropic tried RAG early, then moved to agentic search because it outperformed everything else.
 
 ### Why RAG fails for code
 

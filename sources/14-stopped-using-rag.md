@@ -18,7 +18,7 @@ The fundamental issue is that embedding search creates unnecessary complexity fo
 
 "At Cline, I became the number one advocate against using RAG, even though RAG has been my bread and butter for so long. I'm just actively anti-RAG at Cline, and I think in general for any coding agent company."  
 
-This shift isn't unique to Cline - Boris from Cloud Code shared similar experiences on the Latent Space podcast, noting that they tried RAG but found it disappointing and ultimately abandoned it in favor of agentic exploration. 
+This shift isn't unique to Cline - Boris Cherny, who leads Claude Code, described the same move on the Latent Space podcast: Anthropic tried RAG in early versions, indexed the codebase, then switched to agentic search because it outperformed everything else. 
 
 **Key Takeaway:** Despite the massive investment in vector databases and embedding technologies, leading coding agent companies have discovered that direct code exploration produces better results than embedding-based retrieval for coding tasks. 
 
@@ -35,7 +35,7 @@ This approach maintains what Cline calls "narrative integrity" - allowing the ag
 
 "When you show a senior engineer a new codebase, what do they do? They look at the folder structure, they look at the names of the folders, they look at the files, they might read in a file and see 'okay, this file imports this other file, let's go check out what this other file has.' And then you generally build an understanding using this agentic discovery approach."  
 
-The agent first gathers all necessary information in a "plan mode," then switches to "act mode" to implement the solution. This pattern is becoming increasingly common across coding agents, with Cloud Code recently adding a similar plan and act paradigm. 
+The agent first gathers all necessary information in a "plan mode," then switches to "act mode" to implement the solution. This pattern is becoming increasingly common across coding agents, with Claude Code recently adding a similar plan and act paradigm. 
 
 **Key Takeaway:** Modern coding agents work best when they can explore code like humans do - reading entire files, following imports, and building a coherent understanding rather than relying on embedding search to surface relevant code snippets. 
 
@@ -185,7 +185,7 @@ For coding agents specifically, RAG (particularly embedding-based search) has pr
 ## What alternatives work better than RAG for coding agents?¶
  
 
-The most effective approach is giving coding agents access to basic tools like file reading, directory navigation, and terminal commands (grep, search). This allows agents to explore code bases organically, building understanding through a logical progression. Many leading coding agents like Cline and Cloud Code have adopted a "plan and act" paradigm where the agent first gathers information and creates a plan, then executes it—all without relying on embedding search. 
+The most effective approach is giving coding agents access to basic tools like file reading, directory navigation, and terminal commands (grep, search). This allows agents to explore code bases organically, building understanding through a logical progression. Many leading coding agents like Cline and Claude Code have adopted a "plan and act" paradigm where the agent first gathers information and creates a plan, then executes it—all without relying on embedding search. 
 
 ## Doesn't RAG help with large code bases?¶
  
